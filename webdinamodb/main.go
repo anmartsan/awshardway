@@ -16,8 +16,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/julienschmidt/httprouter"
-	uuid "github.com/nu7hatch/gouuid"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type usuario struct {
@@ -82,7 +80,7 @@ func main() {
 	router.POST("/login", login(db))
 	router.GET("/logout", logout)
 	router.GET("/create", createPage)
-	router.POST("/create", create)
+	router.POST("/create", create(db))
 	go func() {
 		err = http.ListenAndServe(":9000", router)
 		if err != nil {
@@ -96,6 +94,42 @@ func main() {
 	saveUsers()
 }
 
+func create(s *dynamodb.DynamoDB) httprouter.Handle {
+	return func(res http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+		name := req.FormValue("username")
+		p := req.FormValue("password")
+		if len(name) < 3 || len(p) < 3 {
+			http.Redirect(res, req, "/create?msg=Requires longer attributes", http.StatusSeeOther)
+			return
+		}
+		usuarioDb := usuario{
+			Pass: p,
+			User: name,
+		}
+
+		usuarioMap, err := dynamodbattribute.MarshalMap(usuarioDb)
+		if err != nil {
+			panic("Cannot marshal usuario into AttributeValue map")
+		}
+
+		params := &dynamodb.PutItemInput{
+			TableName: aws.String("usuarios"),
+			Item:      usuarioMap,
+		}
+		resp, err := s.PutItem(params)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err.Error())
+			return
+		}
+		fmt.Println(resp)
+
+		// http.SetCookie(res, &http.Cookie{
+		// 	Name:  "login",
+		// 	Value: id.String(),
+		// })
+		http.Redirect(res, req, "/", http.StatusSeeOther)
+	}
+}
 func index(s *dynamodb.DynamoDB) httprouter.Handle {
 	return func(res http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 		var username string
@@ -176,40 +210,20 @@ func login(db *dynamodb.DynamoDB) httprouter.Handle {
 			http.Redirect(res, req, "/login?msg=No such user", http.StatusSeeOther)
 			return
 		}
-		// if bcrypt.CompareHashAndPassword(u.Password, []byte(p)) != nil {
-		// 	http.Redirect(res, req, "/login?msg=Incorrect password", http.StatusSeeOther)
-		// 	return
-		// }
+		if (len(usuarioDb.User) > 0) && usuarioDb.Pass == p {
+			http.Redirect(res, req, "/", http.StatusSeeOther)
+
+		} else {
+			http.Redirect(res, req, "/login?msg=Incorrect password", http.StatusSeeOther)
+		}
 
 		// http.SetCookie(res, &http.Cookie{
 		// 	Name:  "login",
 		// 	Value: u.ID,
 		// })
-		http.Redirect(res, req, "/", http.StatusSeeOther)
+
 	}
 }
-
-// func login(res http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-// 	name := req.FormValue("username")
-// 	p := req.FormValue("password")
-
-// 	u, ok := users[name]
-// 	if !ok {
-// 		log.Printf("error logging in, no such user: %s\n", name)
-// 		http.Redirect(res, req, "/login?msg=No such user", http.StatusSeeOther)
-// 		return
-// 	}
-// 	if bcrypt.CompareHashAndPassword(u.Password, []byte(p)) != nil {
-// 		http.Redirect(res, req, "/login?msg=Incorrect password", http.StatusSeeOther)
-// 		return
-// 	}
-
-// 	http.SetCookie(res, &http.Cookie{
-// 		Name:  "login",
-// 		Value: u.ID,
-// 	})
-// 	http.Redirect(res, req, "/", http.StatusSeeOther)
-// }
 
 func logout(res http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 	http.SetCookie(res, &http.Cookie{
@@ -228,35 +242,35 @@ func createPage(res http.ResponseWriter, req *http.Request, _ httprouter.Params)
 	}
 }
 
-func create(res http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-	name := req.FormValue("username")
-	p := req.FormValue("password")
-	if len(name) < 3 || len(p) < 3 {
-		http.Redirect(res, req, "/create?msg=Requires longer attributes", http.StatusSeeOther)
-		return
-	}
-	id, err := uuid.NewV4()
-	if err != nil {
-		http.Error(res, "Server Error", http.StatusInternalServerError)
-		log.Printf("error generating uuid: %s\n", err.Error())
-		return
-	}
-	hashPass, err := bcrypt.GenerateFromPassword([]byte(p), bcrypt.DefaultCost)
-	if err != nil {
-		http.Error(res, "Server Error", http.StatusInternalServerError)
-		log.Printf("error hashing password: %s\n", err.Error())
-		return
-	}
-	u := user{
-		Username: name,
-		Password: hashPass,
-		ID:       id.String(),
-	}
-	users[name] = u
-	idUsers[id.String()] = u
-	http.SetCookie(res, &http.Cookie{
-		Name:  "login",
-		Value: id.String(),
-	})
-	http.Redirect(res, req, "/", http.StatusSeeOther)
-}
+// func create(res http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+// 	name := req.FormValue("username")
+// 	p := req.FormValue("password")
+// 	if len(name) < 3 || len(p) < 3 {
+// 		http.Redirect(res, req, "/create?msg=Requires longer attributes", http.StatusSeeOther)
+// 		return
+// 	}
+// 	id, err := uuid.NewV4()
+// 	if err != nil {
+// 		http.Error(res, "Server Error", http.StatusInternalServerError)
+// 		log.Printf("error generating uuid: %s\n", err.Error())
+// 		return
+// 	}
+// 	hashPass, err := bcrypt.GenerateFromPassword([]byte(p), bcrypt.DefaultCost)
+// 	if err != nil {
+// 		http.Error(res, "Server Error", http.StatusInternalServerError)
+// 		log.Printf("error hashing password: %s\n", err.Error())
+// 		return
+// 	}
+// 	u := user{
+// 		Username: name,
+// 		Password: hashPass,
+// 		ID:       id.String(),
+// 	}
+// 	users[name] = u
+// 	idUsers[id.String()] = u
+// 	http.SetCookie(res, &http.Cookie{
+// 		Name:  "login",
+// 		Value: id.String(),
+// 	})
+// 	http.Redirect(res, req, "/", http.StatusSeeOther)
+// }
