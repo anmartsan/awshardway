@@ -241,36 +241,3 @@ func createPage(res http.ResponseWriter, req *http.Request, _ httprouter.Params)
 		return
 	}
 }
-
-// func create(res http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-// 	name := req.FormValue("username")
-// 	p := req.FormValue("password")
-// 	if len(name) < 3 || len(p) < 3 {
-// 		http.Redirect(res, req, "/create?msg=Requires longer attributes", http.StatusSeeOther)
-// 		return
-// 	}
-// 	id, err := uuid.NewV4()
-// 	if err != nil {
-// 		http.Error(res, "Server Error", http.StatusInternalServerError)
-// 		log.Printf("error generating uuid: %s\n", err.Error())
-// 		return
-// 	}
-// 	hashPass, err := bcrypt.GenerateFromPassword([]byte(p), bcrypt.DefaultCost)
-// 	if err != nil {
-// 		http.Error(res, "Server Error", http.StatusInternalServerError)
-// 		log.Printf("error hashing password: %s\n", err.Error())
-// 		return
-// 	}
-// 	u := user{
-// 		Username: name,
-// 		Password: hashPass,
-// 		ID:       id.String(),
-// 	}
-// 	users[name] = u
-// 	idUsers[id.String()] = u
-// 	http.SetCookie(res, &http.Cookie{
-// 		Name:  "login",
-// 		Value: id.String(),
-// 	})
-// 	http.Redirect(res, req, "/", http.StatusSeeOther)
-// }
