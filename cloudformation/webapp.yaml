@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Webapp with LB and ASG
+#Metadata: 
+
+#Parameters: 
+#  InstanceType:
+#    Description: Tipo de instancia
+#    Type: List<AWS::EC2::Instance::Id>
+#    Default: t2.micro
+
+#Mappings: 
+
+#Conditions: 
+
+Resources: 
+  VPCWeb:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: VPC WEB
+  PrivSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs '']
+      VpcId: !Ref VPCWeb
+      CidrBlock: 10.0.1.0/24
+      Tags:
+        - Key: Name
+          Value: Private Subnet 1
+  PrivSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs '']
+      VpcId: !Ref VPCWeb
+      CidrBlock: 10.0.2.0/24
+      Tags:
+        - Key: Name
+          Value: Private Subnet 2
+  PubSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [2, !GetAZs '']
+      VpcId: !Ref VPCWeb
+      CidrBlock: 10.0.3.0/24
+      Tags:
+        - Key: Name
+          Value: Subnet LB
+  igwName:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: IGWeb
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPCWeb
+      InternetGatewayId: !Ref igwName
+  RouteTablePublic:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPCWeb
+      Tags:
+        - Key: Name
+          Value: RouteTableWebPub
+  RouteTablePriv:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPCWeb
+      Tags:
+        - Key: Name
+          Value: RouteTableWebPriv
+  RouteTableAssociationPub1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PubSubnet1 
+      RouteTableId: !Ref RouteTablePublic
+  RouteTableAssociationPriv1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivSubnet1
+      RouteTableId: !Ref RouteTablePriv
+  RouteTableAssociationPriv2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivSubnet2
+      RouteTableId: !Ref RouteTablePriv
+  routeName:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTablePublic
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref igwName
+  
+    
+
+#Outputs:
